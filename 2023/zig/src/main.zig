@@ -51,6 +51,7 @@ fn processRounds(rounds: []const u8) !bool {
 pub fn main() !void {
     var lines = std.mem.tokenize(u8, input, "\n");
     var game_id_sum: u32 = 0;
+    var power_sum: u32 = 0;
     while (lines.next()) |line| {
         var line_split = std.mem.splitAny(u8, line, ":");
         const gameId: u8 = try std.fmt.parseInt(u8, line_split.next().?[5..], 10);
@@ -65,18 +66,11 @@ pub fn main() !void {
         if (possible) {
             game_id_sum += gameId;
         }
+
+        rounds_split.reset();
+
+        power_sum += try getPowerOfRound(&rounds_split);
     }
 
-    lines.reset();
-
-    var power_sum: u32 = 0;
-    while (lines.next()) |line| {
-        var line_split = std.mem.splitAny(u8, line, ":");
-        _ = line_split.next().?;
-        var rounds_slice = std.mem.splitAny(u8, line_split.next().?, ";");
-        power_sum += try getPowerOfRound(&rounds_slice);
-    }
-
-    std.debug.print("Part 1: {d}\n", .{game_id_sum});
-    std.debug.print("Part 2: {d}\n", .{power_sum});
+    std.debug.print("Part 1: {d}\nPart 2: {d}\n", .{ game_id_sum, power_sum });
 }
