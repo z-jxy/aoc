@@ -6,7 +6,6 @@ use syn::{parse_macro_input, Ident, ItemFn, LitInt};
 pub fn main(args: TokenStream, input: TokenStream) -> TokenStream {
     let day = parse_macro_input!(args as LitInt);
     let input_path = format!("../../../inputs/{}.txt", day.token());
-    println!("input_path: {}", input_path);
 
     let mut aoc_solution = parse_macro_input!(input as ItemFn);
     aoc_solution.sig.ident = Ident::new("aoc_solution", aoc_solution.sig.ident.span());

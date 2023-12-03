@@ -82,10 +82,5 @@ fn main(input: &str) -> (usize, usize) {
         })
         .sum();
 
-    println!(
-        "part 1: {} \n part 2: {}",
-        possible_games_id_sum, part_two_sum
-    );
-
     (possible_games_id_sum as usize, part_two_sum as usize)
 }
