@@ -53,7 +53,6 @@ impl Module {
             }
             ModuleType::Conjunction(ref mut state) => {
                 state.insert(sender.to_string(), pulse);
-                //println!("state: {:?} | sender was: {sender}", state);
                 let pulse = match state.iter().all(|(_, p)| p == &Pulse::High) {
                     true => Pulse::Low,
                     false => Pulse::High,
@@ -124,7 +123,6 @@ fn push_button(modules: &mut HashMap<String, Module>, count: usize) -> usize {
 
     let low = pulses.iter().filter(|p| p == &&Pulse::Low).count();
     let high = pulses.len() - low;
-    println!("low: {}, high: {}", low, high);
 
     low * high
 }
@@ -135,7 +133,7 @@ fn p2(modules: &mut HashMap<String, Module>) -> usize {
     let check = modules.clone();
     let feed = check
         .iter()
-        .find(|(name, module)| module.1 .0.contains(&"rx".to_string()))
+        .find(|(_, module)| module.1 .0.contains(&"rx".to_string()))
         .unwrap();
     let mut cycle_lengths = HashMap::new();
     for (name, module) in modules.iter() {
@@ -150,7 +148,6 @@ fn p2(modules: &mut HashMap<String, Module>) -> usize {
             "button".to_string(),
             ("broadcaster".to_string(), Pulse::Low),
         ));
-
         pressed += 1;
 
         while let Some((sender, (receiver, recv_pulse))) = queue.pop_front() {

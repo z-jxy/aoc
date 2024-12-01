@@ -176,7 +176,7 @@ fn count(
     workflow_id: &WorkflowId,
 ) -> usize {
     match workflow_id.0.as_str() {
-        "R" => return 0,
+        "R" => return 0, // reject everything
         "A" => {
             return ranges
                 .values()

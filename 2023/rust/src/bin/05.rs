@@ -148,10 +148,8 @@ fn main(input: &str) -> (usize, usize) {
                 if let Some(res) = Almanac::try_convert_src_to_dest_from_mappings(acc, mappings) {
                     return res;
                 }
-
                 acc
             });
-
             (seed, location)
         })
         .min_by_key(|(_, location)| *location)
