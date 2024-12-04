@@ -31,6 +31,28 @@ name = "aoc"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "aoc_helpers",
+ "aoc_macros",
+ "bstr",
+ "faster-hex",
+ "hashbrown",
+ "itertools",
+ "nom",
+ "num",
+ "quote",
+ "rayon",
+ "syn",
+]
+
+[[package]]
+name = "aoc_helpers"
+version = "0.1.0"
+
+[[package]]
+name = "aoc_macros"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
  "bstr",
  "faster-hex",
  "hashbrown",
