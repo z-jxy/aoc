@@ -2,75 +2,45 @@ use hashbrown::HashSet;
 use itertools::Itertools;
 
 fn p1(orderings: &HashSet<(usize, usize)>, updates: &[Vec<usize>]) -> usize {
-    let mut valid_updates = vec![];
-    for update in updates {
-        let tuple_windows = update.iter().tuple_windows();
-        let mut valid = true;
-
-        for (left, right) in tuple_windows {
-            if orderings.contains(&(*right, *left)) {
-                valid = false;
-                break;
-            }
-        }
-
-        if valid {
-            valid_updates.push(update);
-        }
-    }
-
-    valid_updates
+    updates
         .iter()
+        .filter(|update| {
+            update
+                .iter()
+                .tuple_windows()
+                .all(|(left, right)| !orderings.contains(&(*right, *left)))
+        })
         .fold(0, |acc, update| acc + update[update.len() / 2])
 }
 
-fn p2(orderings: &HashSet<(usize, usize)>, updates: &[Vec<usize>]) -> usize {
-    // let mut valid_updates = vec![];
-    let mut invalid_updates = vec![];
-    for update in updates {
-        let tuple_windows = update.iter().tuple_windows();
-        let mut valid = true;
+fn p2(orderings: &HashSet<(usize, usize)>, updates: &mut [Vec<usize>]) -> usize {
+    updates
+        .iter_mut()
+        .filter(|update| {
+            update
+                .iter()
+                .tuple_windows()
+                .any(|(left, right)| orderings.contains(&(*right, *left)))
+        })
+        .fold(0, |acc, update| {
+            // reorder the updates
+            let len = update.len();
 
-        for (left, right) in tuple_windows {
-            if orderings.contains(&(*right, *left)) {
-                valid = false;
-                break;
-            }
-        }
-
-        if !valid {
-            invalid_updates.push(update);
-        }
-    }
-
-    let mut fixed_updates = vec![];
-    for update in invalid_updates.iter_mut() {
-        let len = update.len();
-        let mut buf = update.clone(); // Start with a copy of the update.
-
-        let mut swapped = true;
-        while swapped {
-            swapped = false; // Assume no swaps will be needed this pass.
-
-            for i in 1..len {
-                let left = buf[i - 1];
-                let right = buf[i];
-
-                if orderings.contains(&(right, left)) {
-                    // Swap them
-                    buf[i - 1] = right;
-                    buf[i] = left;
-                    swapped = true; // Mark that a swap was made.
+            let mut swapped = true;
+            while swapped {
+                swapped = false; // assum no swaps needed
+                for i in 1..len {
+                    let left = update[i - 1];
+                    let right = update[i];
+                    if orderings.contains(&(right, left)) {
+                        update.swap(i - 1, i);
+                        swapped = true; // mark that a swap was made.
+                    }
                 }
             }
-        }
 
-        fixed_updates.push(buf); // Store the fixed update.
-    }
-
-    fixed_updates
-        .iter()
-        .fold(0, |acc, update| acc + update[update.len() / 2])
+            acc + update[len / 2]
+        })
 }
 
 fn parse(input: &str) -> (HashSet<(usize, usize)>, Vec<Vec<usize>>) {
@@ -89,7 +59,7 @@ fn parse(input: &str) -> (HashSet<(usize, usize)>, Vec<Vec<usize>>) {
             {
                 (left, right)
             } else {
-                panic!("Invalid input")
+                unreachable!("Invalid input");
             }
         })
         .collect::<HashSet<_>>();
@@ -108,10 +78,10 @@ fn parse(input: &str) -> (HashSet<(usize, usize)>, Vec<Vec<usize>>) {
 
 #[aoc::main(05)]
 fn main(input: &str) -> (usize, usize) {
-    let (orderings, updates) = parse(input);
+    let (orderings, mut updates) = parse(input);
 
     let p1 = p1(&orderings, &updates);
-    let p2 = p2(&orderings, &updates);
+    let p2 = p2(&orderings, &mut updates);
 
     (p1, p2)
 }
@@ -158,8 +128,8 @@ mod tests {
 
     #[test]
     fn test_p2() {
-        let (orderings, updates) = parse(EXAMPLE);
-        let p2 = p2(&orderings, &updates);
+        let (orderings, mut updates) = parse(EXAMPLE);
+        let p2 = p2(&orderings, &mut updates);
         assert_eq!(p2, 123);
     }
 }
