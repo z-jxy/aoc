@@ -1,6 +1,7 @@
+use hashbrown::HashSet;
 use itertools::Itertools;
 
-fn p1(orderings: &[(usize, usize)], updates: &[Vec<usize>]) -> usize {
+fn p1(orderings: &HashSet<(usize, usize)>, updates: &[Vec<usize>]) -> usize {
     let mut valid_updates = vec![];
     for update in updates {
         let tuple_windows = update.iter().tuple_windows();
@@ -23,7 +24,7 @@ fn p1(orderings: &[(usize, usize)], updates: &[Vec<usize>]) -> usize {
         .fold(0, |acc, update| acc + update[update.len() / 2])
 }
 
-fn p2(orderings: &[(usize, usize)], updates: &[Vec<usize>]) -> usize {
+fn p2(orderings: &HashSet<(usize, usize)>, updates: &[Vec<usize>]) -> usize {
     // let mut valid_updates = vec![];
     let mut invalid_updates = vec![];
     for update in updates {
@@ -72,7 +73,7 @@ fn p2(orderings: &[(usize, usize)], updates: &[Vec<usize>]) -> usize {
         .fold(0, |acc, update| acc + update[update.len() / 2])
 }
 
-fn parse(input: &str) -> (Vec<(usize, usize)>, Vec<Vec<usize>>) {
+fn parse(input: &str) -> (HashSet<(usize, usize)>, Vec<Vec<usize>>) {
     let mut split = input.split("\n\n");
 
     let ordering = split.next().unwrap();
@@ -91,7 +92,7 @@ fn parse(input: &str) -> (Vec<(usize, usize)>, Vec<Vec<usize>>) {
                 panic!("Invalid input")
             }
         })
-        .collect::<Vec<_>>();
+        .collect::<HashSet<_>>();
 
     let updates = pages
         .lines()
