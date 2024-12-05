@@ -1,3 +1,5 @@
 inputs/
 target/
 .vscode/
+*.sh
+.DS_Store
