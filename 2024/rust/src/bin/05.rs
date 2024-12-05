@@ -26,18 +26,15 @@ fn p2(orderings: &HashSet<(usize, usize)>, updates: &mut [Vec<usize>]) -> usize 
             // reorder the updates
             let len = update.len();
 
-            let mut swapped = true;
-            while swapped {
-                swapped = false; // assume no swaps needed
-                for i in 1..len {
-                    let left = update[i - 1];
-                    let right = update[i];
-                    if orderings.contains(&(right, left)) {
-                        update.swap(i - 1, i);
-                        swapped = true; // mark that a swap was made.
-                    }
+            update.sort_by(|a, b| {
+                if orderings.contains(&(*a, *b)) {
+                    std::cmp::Ordering::Greater
+                } else if orderings.contains(&(*b, *a)) {
+                    std::cmp::Ordering::Less
+                } else {
+                    std::cmp::Ordering::Equal
                 }
-            }
+            });
 
             acc + update[len / 2]
         })
