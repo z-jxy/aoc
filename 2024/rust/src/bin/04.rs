@@ -72,6 +72,7 @@ fn check_mas_pair(
     // Character matching
     let char1 = grid[dr1 as usize][dc1 as usize];
     let char2 = grid[dr2 as usize][dc2 as usize];
+
     (char1 == 'M' && char2 == 'S') || (char1 == 'S' && char2 == 'M')
 }
 
