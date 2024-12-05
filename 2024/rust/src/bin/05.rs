@@ -28,7 +28,7 @@ fn p2(orderings: &HashSet<(usize, usize)>, updates: &mut [Vec<usize>]) -> usize 
 
             let mut swapped = true;
             while swapped {
-                swapped = false; // assum no swaps needed
+                swapped = false; // assume no swaps needed
                 for i in 1..len {
                     let left = update[i - 1];
                     let right = update[i];
