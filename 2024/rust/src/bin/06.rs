@@ -48,8 +48,7 @@ fn solve(grid: &mut [Vec<u8>]) -> (usize, usize) {
             potential_positions.push((r, c));
         }
 
-        let nr = r as i32 + dr;
-        let nc = c as i32 + dc;
+        let (nr, nc) = (r as i32 + dr, c as i32 + dc);
 
         if nr < 0 || nr as usize >= rows || nc < 0 || nc as usize >= cols {
             break;
@@ -88,8 +87,7 @@ fn solve(grid: &mut [Vec<u8>]) -> (usize, usize) {
             }
             set_visited(&mut visited_states, r, c, bit, cols);
 
-            let nr = r as i32 + dr;
-            let nc = c as i32 + dc;
+            let (nr, nc) = (r as i32 + dr, c as i32 + dc);
 
             if nr < 0 || nr as usize >= rows || nc < 0 || nc as usize >= cols {
                 break;
