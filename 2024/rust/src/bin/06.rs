@@ -41,8 +41,12 @@ fn solve(grid: &mut [Vec<u8>]) -> (usize, usize) {
 
     let (mut dr, mut dc) = (-1, 0);
 
+    let mut potential_positions = Vec::with_capacity(rows * cols);
     loop {
-        visited[r][c] = true;
+        if !visited[r][c] {
+            visited[r][c] = true;
+            potential_positions.push((r, c));
+        }
 
         let nr = r as i32 + dr;
         let nc = c as i32 + dc;
@@ -59,21 +63,12 @@ fn solve(grid: &mut [Vec<u8>]) -> (usize, usize) {
         (r, c) = (nr as usize, nc as usize);
     }
 
-    // don't include the starting position
-    visited[start.0][start.1] = false;
-
-    let mut potential_positions = Vec::with_capacity(rows * cols);
-    for i in 0..visited.len() {
-        for j in 0..visited[i].len() {
-            if visited[i][j] {
-                potential_positions.push((i, j));
-            }
-        }
-    }
-
-    let p1 = potential_positions.len() + 1; // +1 to account for the starting position we set to false
+    // potential positions is the solution to p1, excluding the starting position
+    let p1 = potential_positions.len(); // save answer for p1
+    potential_positions.remove(0); // exclude starting position
 
     let mut visited_states = vec![0u8; rows * cols];
+
     let p2 = potential_positions.iter().fold(0, |acc, (or, oc)| {
         let mut looped = 0;
 
