@@ -3,3 +3,4 @@ target/
 .vscode/
 *.sh
 .DS_Store
+*_revisit.*
