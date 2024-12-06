@@ -28,8 +28,7 @@ fn solve(grid: &mut [Vec<char>]) -> (usize, usize) {
         })
         .unwrap();
 
-    let mut r = start.0;
-    let mut c = start.1;
+    let (mut r, mut c) = start;
     let mut dir = 0; // starting direction: up (-1,0) = 0
 
     loop {
@@ -48,8 +47,7 @@ fn solve(grid: &mut [Vec<char>]) -> (usize, usize) {
             continue;
         }
 
-        r = nr as usize;
-        c = nc as usize;
+        (r, c) = (nr as usize, nc as usize);
     }
 
     // don't include the starting position
@@ -75,8 +73,7 @@ fn solve(grid: &mut [Vec<char>]) -> (usize, usize) {
 
         grid[*or][*oc] = '#';
 
-        let mut r = start.0;
-        let mut c = start.1;
+        let (mut r, mut c) = start;
         let mut dir = 0;
 
         loop {
@@ -98,11 +95,11 @@ fn solve(grid: &mut [Vec<char>]) -> (usize, usize) {
                 continue;
             }
 
-            r = nr as usize;
-            c = nc as usize;
+            (r, c) = (nr as usize, nc as usize);
         }
 
         grid[*or][*oc] = original; // restore
+
         visited_states.iter_mut().for_each(|v| *v = 0); // reset visited states
 
         acc + looped
