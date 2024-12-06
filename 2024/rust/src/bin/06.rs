@@ -1,5 +1,4 @@
-const DR: [i32; 4] = [-1, 0, 1, 0];
-const DC: [i32; 4] = [0, 1, 0, -1];
+const DIRECTIONS: [(i32, i32); 4] = [(-1, 0), (0, 1), (1, 0), (0, -1)];
 
 #[inline(always)]
 fn set_visited(visited: &mut [u8], r: usize, c: usize, dir: usize, cols: usize) {
@@ -36,8 +35,8 @@ fn solve(grid: &mut [Vec<char>]) -> (usize, usize) {
     loop {
         visited[r][c] = true;
 
-        let nr = r as i32 + DR[dir];
-        let nc = c as i32 + DC[dir];
+        let nr = r as i32 + DIRECTIONS[dir].0;
+        let nc = c as i32 + DIRECTIONS[dir].1;
 
         if nr < 0 || nr as usize >= rows || nc < 0 || nc as usize >= cols {
             break;
@@ -67,14 +66,14 @@ fn solve(grid: &mut [Vec<char>]) -> (usize, usize) {
 
     let p1 = potential_positions.len() + 1; // +1 to account for the starting position we set to false
 
-    let size = (rows * cols * 4 + 7) / 8; // round up to full bytes
+    let size = (rows * cols * 4).div_ceil(8);
     let mut visited_states = vec![0u8; size];
-    let p2 = potential_positions.iter().fold(0, |acc, (_r, _c)| {
+    let p2 = potential_positions.iter().fold(0, |acc, (or, oc)| {
         let mut looped = 0;
 
-        let original = grid[*_r][*_c];
+        let original = grid[*or][*oc];
 
-        grid[*_r][*_c] = '#';
+        grid[*or][*oc] = '#';
 
         let mut r = start.0;
         let mut c = start.1;
@@ -87,8 +86,8 @@ fn solve(grid: &mut [Vec<char>]) -> (usize, usize) {
             }
             set_visited(&mut visited_states, r, c, dir, cols);
 
-            let nr = r as i32 + DR[dir];
-            let nc = c as i32 + DC[dir];
+            let nr = r as i32 + DIRECTIONS[dir].0;
+            let nc = c as i32 + DIRECTIONS[dir].1;
 
             if nr < 0 || nr as usize >= rows || nc < 0 || nc as usize >= cols {
                 break;
@@ -103,7 +102,7 @@ fn solve(grid: &mut [Vec<char>]) -> (usize, usize) {
             c = nc as usize;
         }
 
-        grid[*_r][*_c] = original; // restore
+        grid[*or][*oc] = original; // restore
         visited_states.iter_mut().for_each(|v| *v = 0); // reset visited states
 
         acc + looped
