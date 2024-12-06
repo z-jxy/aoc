@@ -1,18 +1,27 @@
-const DIRECTIONS: [(i32, i32); 4] = [(-1, 0), (0, 1), (1, 0), (0, -1)];
-
 #[inline(always)]
-fn set_visited(visited: &mut [u8], r: usize, c: usize, dir: usize, cols: usize) {
-    let idx = (r * cols + c) * 4 + dir;
-    visited[idx / 8] |= 1 << (idx % 8);
+fn set_visited(visited: &mut [u8], r: usize, c: usize, bit: u8, cols: usize) {
+    let idx = r * cols + c;
+    visited[idx] |= bit;
 }
 
 #[inline(always)]
-fn is_visited(visited: &[u8], r: usize, c: usize, dir: usize, cols: usize) -> bool {
-    let idx = (r * cols + c) * 4 + dir;
-    (visited[idx / 8] & (1 << (idx % 8))) != 0
+fn is_visited(visited: &[u8], r: usize, c: usize, bit: u8, cols: usize) -> bool {
+    let idx = r * cols + c;
+    (visited[idx] & bit) != 0
 }
 
-fn solve(grid: &mut [Vec<char>]) -> (usize, usize) {
+#[inline(always)]
+fn direction_bit(dr: i32, dc: i32) -> u8 {
+    match (dr, dc) {
+        (-1, 0) => 0x01, // Up
+        (0, 1) => 0x02,  // Right
+        (1, 0) => 0x04,  // Down
+        (0, -1) => 0x08, // Left
+        _ => unreachable!(),
+    }
+}
+
+fn solve(grid: &mut [Vec<u8>]) -> (usize, usize) {
     let rows = grid.len();
     let cols = grid[0].len();
 
@@ -24,26 +33,26 @@ fn solve(grid: &mut [Vec<char>]) -> (usize, usize) {
         .find_map(|(r, row)| {
             row.iter()
                 .enumerate()
-                .find_map(|(c, &cell)| if cell == '^' { Some((r, c)) } else { None })
+                .find_map(|(c, &cell)| if cell == b'^' { Some((r, c)) } else { None })
         })
         .unwrap();
 
     let (mut r, mut c) = start;
-    let mut dir = 0; // starting direction: up (-1,0) = 0
+
+    let (mut dr, mut dc) = (-1, 0);
 
     loop {
         visited[r][c] = true;
 
-        let nr = r as i32 + DIRECTIONS[dir].0;
-        let nc = c as i32 + DIRECTIONS[dir].1;
+        let nr = r as i32 + dr;
+        let nc = c as i32 + dc;
 
         if nr < 0 || nr as usize >= rows || nc < 0 || nc as usize >= cols {
             break;
         }
 
-        if grid[nr as usize][nc as usize] == '#' {
-            // turn right
-            dir = (dir + 1) % 4;
+        if grid[nr as usize][nc as usize] == b'#' {
+            (dr, dc) = (dc, -dr);
             continue;
         }
 
@@ -53,7 +62,7 @@ fn solve(grid: &mut [Vec<char>]) -> (usize, usize) {
     // don't include the starting position
     visited[start.0][start.1] = false;
 
-    let mut potential_positions = vec![];
+    let mut potential_positions = Vec::with_capacity(rows * cols);
     for i in 0..visited.len() {
         for j in 0..visited[i].len() {
             if visited[i][j] {
@@ -64,34 +73,35 @@ fn solve(grid: &mut [Vec<char>]) -> (usize, usize) {
 
     let p1 = potential_positions.len() + 1; // +1 to account for the starting position we set to false
 
-    let size = (rows * cols * 4).div_ceil(8);
-    let mut visited_states = vec![0u8; size];
+    let mut visited_states = vec![0u8; rows * cols];
     let p2 = potential_positions.iter().fold(0, |acc, (or, oc)| {
         let mut looped = 0;
 
         let original = grid[*or][*oc];
 
-        grid[*or][*oc] = '#';
+        grid[*or][*oc] = b'#';
 
         let (mut r, mut c) = start;
-        let mut dir = 0;
+
+        let (mut dr, mut dc) = (-1, 0);
 
         loop {
-            if is_visited(&visited_states, r, c, dir, cols) {
+            let bit = direction_bit(dr, dc);
+            if is_visited(&visited_states, r, c, bit, cols) {
                 looped = 1;
                 break;
             }
-            set_visited(&mut visited_states, r, c, dir, cols);
+            set_visited(&mut visited_states, r, c, bit, cols);
 
-            let nr = r as i32 + DIRECTIONS[dir].0;
-            let nc = c as i32 + DIRECTIONS[dir].1;
+            let nr = r as i32 + dr;
+            let nc = c as i32 + dc;
 
             if nr < 0 || nr as usize >= rows || nc < 0 || nc as usize >= cols {
                 break;
             }
 
-            if grid[nr as usize][nc as usize] == '#' {
-                dir = (dir + 1) % 4;
+            if grid[nr as usize][nc as usize] == b'#' {
+                (dr, dc) = (dc, -dr);
                 continue;
             }
 
@@ -100,7 +110,7 @@ fn solve(grid: &mut [Vec<char>]) -> (usize, usize) {
 
         grid[*or][*oc] = original; // restore
 
-        visited_states.iter_mut().for_each(|v| *v = 0); // reset visited states
+        visited_states.fill(0); // reset visited states
 
         acc + looped
     });
@@ -112,7 +122,7 @@ fn solve(grid: &mut [Vec<char>]) -> (usize, usize) {
 fn main(input: &str) -> (usize, usize) {
     let mut grid = input
         .lines()
-        .map(|line| line.chars().collect::<Vec<_>>())
+        .map(|line| line.as_bytes().to_vec())
         .collect::<Vec<_>>();
 
     solve(&mut grid)
@@ -138,7 +148,7 @@ mod tests {
         let (p1, _) = solve(
             &mut EXAMPLE
                 .lines()
-                .map(|line| line.chars().collect::<Vec<_>>())
+                .map(|line| line.as_bytes().to_vec())
                 .collect::<Vec<_>>(),
         );
         assert_eq!(p1, 41);
@@ -149,7 +159,7 @@ mod tests {
         let (_, p2) = solve(
             &mut EXAMPLE
                 .lines()
-                .map(|line| line.chars().collect::<Vec<_>>())
+                .map(|line| line.as_bytes().to_vec())
                 .collect::<Vec<_>>(),
         );
         assert_eq!(p2, 6);

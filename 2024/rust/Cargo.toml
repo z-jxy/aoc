@@ -25,3 +25,6 @@ anyhow = "1.0.75"
 
 aoc_macros = { path = "aoc_macros"}
 aoc_helpers = { path = "../../2023/aoc_helpers" }
+
+[profile.release]
+debug = true
