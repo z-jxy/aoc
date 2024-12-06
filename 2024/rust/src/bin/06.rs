@@ -1,6 +1,19 @@
-use std::collections::{HashSet, VecDeque};
+const DR: [i32; 4] = [-1, 0, 1, 0];
+const DC: [i32; 4] = [0, 1, 0, -1];
 
-fn solve(grid: &[Vec<char>]) -> (usize, usize) {
+#[inline(always)]
+fn set_visited(visited: &mut [u8], r: usize, c: usize, dir: usize, cols: usize) {
+    let idx = (r * cols + c) * 4 + dir;
+    visited[idx / 8] |= 1 << (idx % 8);
+}
+
+#[inline(always)]
+fn is_visited(visited: &[u8], r: usize, c: usize, dir: usize, cols: usize) -> bool {
+    let idx = (r * cols + c) * 4 + dir;
+    (visited[idx / 8] & (1 << (idx % 8))) != 0
+}
+
+fn solve(grid: &mut [Vec<char>]) -> (usize, usize) {
     let rows = grid.len();
     let cols = grid[0].len();
 
@@ -16,36 +29,29 @@ fn solve(grid: &[Vec<char>]) -> (usize, usize) {
         })
         .unwrap();
 
-    let mut queue = VecDeque::from([start]);
+    let mut r = start.0;
+    let mut c = start.1;
+    let mut dir = 0; // starting direction: up (-1,0) = 0
 
-    let mut direction = (-1i32, 0i32);
-
-    while let Some((r, c)) = queue.pop_front() {
+    loop {
         visited[r][c] = true;
 
-        let nr = r as i32 + direction.0;
-        let nc = c as i32 + direction.1;
+        let nr = r as i32 + DR[dir];
+        let nc = c as i32 + DC[dir];
 
         if nr < 0 || nr as usize >= rows || nc < 0 || nc as usize >= cols {
             break;
         }
 
         if grid[nr as usize][nc as usize] == '#' {
-            match direction {
-                (-1, 0) => direction = (0, 1),
-                (0, 1) => direction = (1, 0),
-                (1, 0) => direction = (0, -1),
-                (0, -1) => direction = (-1, 0),
-                _ => unreachable!(),
-            }
-            queue.push_back((r, c));
+            // turn right
+            dir = (dir + 1) % 4;
             continue;
         }
 
-        queue.push_back((nr as usize, nc as usize));
+        r = nr as usize;
+        c = nc as usize;
     }
-
-    let p1 = visited.iter().flatten().filter(|&&v| v).count();
 
     // don't include the starting position
     visited[start.0][start.1] = false;
@@ -59,65 +65,61 @@ fn solve(grid: &[Vec<char>]) -> (usize, usize) {
         }
     }
 
-    let mut count = 0;
-    for (_r, _c) in potential_positions.iter() {
-        let mut looped = false;
-        let mut queue = VecDeque::from([start]);
+    let p1 = potential_positions.len() + 1; // +1 to account for the starting position we set to false
 
-        let mut direction = (-1i32, 0i32);
+    let size = (rows * cols * 4 + 7) / 8; // round up to full bytes
+    let mut visited_states = vec![0u8; size];
+    let p2 = potential_positions.iter().fold(0, |acc, (_r, _c)| {
+        let mut looped = 0;
 
-        let mut visited = HashSet::new();
-        let mut grid = grid.to_vec();
+        let original = grid[*_r][*_c];
 
         grid[*_r][*_c] = '#';
 
-        while let Some((r, c)) = queue.pop_front() {
-            visited.insert((r, c, direction));
+        let mut r = start.0;
+        let mut c = start.1;
+        let mut dir = 0;
 
-            let nr = r as i32 + direction.0;
-            let nc = c as i32 + direction.1;
+        loop {
+            if is_visited(&visited_states, r, c, dir, cols) {
+                looped = 1;
+                break;
+            }
+            set_visited(&mut visited_states, r, c, dir, cols);
+
+            let nr = r as i32 + DR[dir];
+            let nc = c as i32 + DC[dir];
 
             if nr < 0 || nr as usize >= rows || nc < 0 || nc as usize >= cols {
                 break;
             }
 
             if grid[nr as usize][nc as usize] == '#' {
-                // rotate 90 degrees to the right and continute
-                match direction {
-                    (-1, 0) => direction = (0, 1),
-                    (0, 1) => direction = (1, 0),
-                    (1, 0) => direction = (0, -1),
-                    (0, -1) => direction = (-1, 0),
-                    _ => unreachable!(),
-                }
-                queue.push_back((r, c));
+                dir = (dir + 1) % 4;
                 continue;
             }
 
-            if visited.contains(&(nr as usize, nc as usize, direction)) {
-                looped = true;
-                break;
-            }
-
-            queue.push_back((nr as usize, nc as usize));
+            r = nr as usize;
+            c = nc as usize;
         }
 
-        if looped {
-            count += 1;
-        }
-    }
+        grid[*_r][*_c] = original; // restore
+        visited_states.iter_mut().for_each(|v| *v = 0); // reset visited states
 
-    (p1, count)
+        acc + looped
+    });
+
+    (p1, p2)
 }
 
 #[aoc::main(06)]
 fn main(input: &str) -> (usize, usize) {
-    let grid = input
+    let mut grid = input
         .lines()
         .map(|line| line.chars().collect::<Vec<_>>())
         .collect::<Vec<_>>();
 
-    solve(&grid)
+    solve(&mut grid)
 }
 
 #[cfg(test)]
@@ -138,7 +140,7 @@ mod tests {
     #[test]
     fn test_p1() {
         let (p1, _) = solve(
-            &EXAMPLE
+            &mut EXAMPLE
                 .lines()
                 .map(|line| line.chars().collect::<Vec<_>>())
                 .collect::<Vec<_>>(),
@@ -149,7 +151,7 @@ mod tests {
     #[test]
     fn test_p2() {
         let (_, p2) = solve(
-            &EXAMPLE
+            &mut EXAMPLE
                 .lines()
                 .map(|line| line.chars().collect::<Vec<_>>())
                 .collect::<Vec<_>>(),
