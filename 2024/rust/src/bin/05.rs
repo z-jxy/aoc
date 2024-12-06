@@ -23,9 +23,6 @@ fn p2(orderings: &HashSet<(usize, usize)>, updates: &mut [Vec<usize>]) -> usize 
                 .any(|(left, right)| orderings.contains(&(*right, *left)))
         })
         .fold(0, |acc, update| {
-            // reorder the updates
-            let len = update.len();
-
             update.sort_by(|a, b| {
                 if orderings.contains(&(*a, *b)) {
                     std::cmp::Ordering::Greater
@@ -35,8 +32,7 @@ fn p2(orderings: &HashSet<(usize, usize)>, updates: &mut [Vec<usize>]) -> usize 
                     std::cmp::Ordering::Equal
                 }
             });
-
-            acc + update[len / 2]
+            acc + update[update.len() / 2]
         })
 }
 
