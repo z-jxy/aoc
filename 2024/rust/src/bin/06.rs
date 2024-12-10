@@ -87,9 +87,9 @@ fn solve(grid: &mut [Vec<u8>]) -> (usize, usize) {
             }
             set_visited(&mut visited_states, r, c, bit, cols);
 
-            let (nr, nc) = (r as i32 + dr, c as i32 + dc);
+            let (nr, nc) = (r + dr as usize, c + dc as usize);
 
-            if nr < 0 || nr as usize >= rows || nc < 0 || nc as usize >= cols {
+            if nr as usize >= rows || nc as usize >= cols {
                 break;
             }
 
