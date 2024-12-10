@@ -4,3 +4,4 @@ target/
 *.sh
 .DS_Store
 *_revisit.*
+input
