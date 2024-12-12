@@ -1,3 +1,5 @@
+mod day12;
+mod day11;
 mod day10;
 mod day9;
 #[macro_use]

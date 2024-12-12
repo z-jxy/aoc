@@ -66,6 +66,7 @@ fn part2(input: &str) -> usize {
                 pos += len;
             });
     }
+
     let total_files = fid;
 
     while fid > 0 {
