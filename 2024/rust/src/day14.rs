@@ -38,54 +38,37 @@ fn parse(input: &str) -> Vec<Robot> {
 fn part1(robots: &[Robot]) -> usize {
     let mut robots = robots.to_vec();
 
-    const WIDTH: usize = 101;
-    const HEIGHT: usize = 103;
+    const SECONDS: u8 = 100;
+    let mut quadrant_counts = [0; 4];
 
-    let seconds = 100;
     for bot in robots.iter_mut() {
-        bot.pos.1 = ((bot.pos.1 as i32 + bot.vel.1 * seconds) % HEIGHT as i32 + HEIGHT as i32)
-            as usize
+        bot.pos.1 = ((bot.pos.1 as i32 + bot.vel.1 * SECONDS as i32) % HEIGHT as i32
+            + HEIGHT as i32) as usize
             % HEIGHT;
-        bot.pos.0 = ((bot.pos.0 as i32 + bot.vel.0 * seconds) % WIDTH as i32 + WIDTH as i32)
+        bot.pos.0 = ((bot.pos.0 as i32 + bot.vel.0 * SECONDS as i32) % WIDTH as i32 + WIDTH as i32)
             as usize
             % WIDTH;
+
+        match (bot.pos.1, bot.pos.0) {
+            (r, c) if r < HEIGHT / 2 && c < WIDTH / 2 => quadrant_counts[0] += 1,
+            (r, c) if r < HEIGHT / 2 && c > WIDTH / 2 => quadrant_counts[1] += 1,
+            (r, c) if r > HEIGHT / 2 && c < WIDTH / 2 => quadrant_counts[2] += 1,
+            (r, c) if r > HEIGHT / 2 && c > WIDTH / 2 => quadrant_counts[3] += 1,
+            _ => {}
+        }
     }
 
-    // strictly greater than middle
-    let quadrants = [
-        // Top left
-        (0..HEIGHT / 2, 0..WIDTH / 2),
-        // Top right
-        (0..HEIGHT / 2, WIDTH / 2 + 1..WIDTH),
-        // Bottom left
-        (HEIGHT / 2 + 1..HEIGHT, 0..WIDTH / 2),
-        // Bottom right
-        (HEIGHT / 2 + 1..HEIGHT, WIDTH / 2 + 1..WIDTH),
-    ];
-
-    let mut safety_factor = 1;
-
-    for (rr, cr) in quadrants.iter() {
-        let quadrant_count = robots
-            .iter()
-            .filter(|robot| rr.contains(&robot.pos.1) && cr.contains(&robot.pos.0))
-            .count();
-
-        safety_factor *= quadrant_count;
-    }
-
-    safety_factor
+    quadrant_counts.iter().product()
 }
 
 #[aoc(day14, part2, _)]
 fn part2(robots: &[Robot]) -> usize {
     let mut robots = robots.to_vec();
 
+    let mut positions: HashSet<(usize, usize)> = HashSet::with_capacity(robots.len());
     let mut elapsed = 0;
     loop {
         elapsed += 1;
-
-        let mut positions: HashSet<(usize, usize)> = HashSet::with_capacity(robots.len());
 
         for bot in robots.iter_mut() {
             bot.pos.1 =
@@ -99,6 +82,8 @@ fn part2(robots: &[Robot]) -> usize {
         if positions.len() == robots.len() {
             break;
         }
+
+        positions.clear();
     }
 
     elapsed
