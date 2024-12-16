@@ -10,12 +10,6 @@ const DIRECTIONS: [(i32, i32); 4] = [(0, 1), (1, 0), (0, -1), (-1, 0)];
 const TURN_COST: i32 = 1000;
 const MOVE_COST: i32 = 1;
 
-#[derive(Clone, Debug, Eq, Hash, PartialEq, Copy)]
-struct Position {
-    x: i32,
-    y: i32,
-}
-
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 struct PackedPosition(u32);
 
@@ -43,22 +37,50 @@ impl PackedPosition {
 }
 
 // track current movement
-#[derive(Clone, Debug, Eq, Hash, PartialEq)]
-struct State {
-    pos: PackedPosition,
-    direction: (i32, i32),
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+struct PackedState(u32);
+
+impl PackedState {
+    #[inline(always)]
+    fn new(pos: PackedPosition, dir: (i32, i32)) -> Self {
+        let dir_bits = match dir {
+            (0, 1) => 0,  // right
+            (1, 0) => 1,  // down
+            (0, -1) => 2, // left
+            (-1, 0) => 3, // up
+            _ => unreachable!(),
+        };
+        // Pack position and direction into a single u32
+        PackedState(pos.0 | (dir_bits << 30))
+    }
+
+    #[inline(always)]
+    fn pos(self) -> PackedPosition {
+        PackedPosition(self.0 & 0x3FFFFFFF) // Mask off direction bits
+    }
+
+    #[inline(always)]
+    fn direction(self) -> (i32, i32) {
+        match (self.0 >> 30) & 0x3 {
+            0 => (0, 1),
+            1 => (1, 0),
+            2 => (0, -1),
+            3 => (-1, 0),
+            _ => unreachable!(),
+        }
+    }
 }
 
 #[derive(Eq, PartialEq)]
 struct Node {
-    state: State,
+    state: PackedState,
     f_score: i32,
     g_score: i32,
 }
 
 impl Ord for Node {
     fn cmp(&self, other: &Self) -> Ordering {
-        // Reverse ordering for min-heap
+        // reverse ordering for min-heap
         other
             .f_score
             .cmp(&self.f_score)
@@ -72,19 +94,12 @@ impl PartialOrd for Node {
     }
 }
 
-impl Position {
-    #[inline(always)]
-    fn manhattan_distance(&self, other: &Position) -> i32 {
-        (self.x - other.x).abs() + (self.y - other.y).abs()
-    }
-}
+fn get_neighbors(state: &PackedState, maze: &[Vec<u8>]) -> [Option<(PackedState, i32)>; 4] {
+    let mut neighbors: [Option<(PackedState, i32)>; 4] = [None; 4];
 
-fn get_neighbors(state: &State, maze: &[Vec<u8>]) -> Vec<(State, i32)> {
-    let mut neighbors = Vec::new();
-
-    for &dir in DIRECTIONS.iter() {
-        let new_x = state.pos.x() + dir.0;
-        let new_y = state.pos.y() + dir.1;
+    for (i, &dir) in DIRECTIONS.iter().enumerate() {
+        let new_x = state.pos().x() + dir.0;
+        let new_y = state.pos().y() + dir.1;
 
         if new_x >= 0
             && new_x < maze[0].len() as i32
@@ -92,38 +107,32 @@ fn get_neighbors(state: &State, maze: &[Vec<u8>]) -> Vec<(State, i32)> {
             && new_y < maze.len() as i32
             && maze[new_y as usize][new_x as usize] != b'#'
         {
-            // Calculate cost based on whether we're turning
-            let cost = match state.direction {
-                // None => MOVE_COST,                                    // First move from start
-                current_dir if current_dir == dir => MOVE_COST, // Same direction
-                _ => TURN_COST + MOVE_COST,                     // Turn + move
+            // calculate cost based on whether we're turning
+            let cost = match state.direction() {
+                current_dir if current_dir == dir => MOVE_COST, // same direction
+                _ => TURN_COST + MOVE_COST,                     // turn + move
             };
 
-            let new_state = State {
-                // pos: Position { x: new_x, y: new_y },
-                pos: PackedPosition::new(new_x, new_y),
-                direction: dir,
-            };
-
-            neighbors.push((new_state, cost));
+            let new_state = PackedState::new(PackedPosition::new(new_x, new_y), dir);
+            neighbors[i] = Some((new_state, cost));
         }
     }
+
     neighbors
 }
 
-fn astar(maze: &[Vec<u8>], start: Position, goal: Position) -> Option<(Vec<PackedPosition>, i32)> {
+fn astar(
+    maze: &[Vec<u8>],
+    start: PackedPosition,
+    goal: PackedPosition,
+) -> Option<(Vec<PackedPosition>, i32)> {
     let mut open_set = BinaryHeap::new();
-    let mut came_from: HashMap<State, State> = HashMap::new();
-    let mut g_scores: HashMap<State, i32> = HashMap::new();
+    let mut came_from: HashMap<PackedState, PackedState> = HashMap::new();
+    let mut g_scores: HashMap<PackedState, i32> = HashMap::new();
 
-    let start_state = State {
-        pos: PackedPosition::new(start.x, start.y),
-        direction: (1, 0), // Initially facing East
-    };
-    let start = PackedPosition::new(start.x, start.y);
-    let goal = PackedPosition::new(goal.x, goal.y);
+    let start_state = PackedState::new(start, (1, 0));
 
-    g_scores.insert(start_state.clone(), 0);
+    g_scores.insert(start_state, 0);
     open_set.push(Node {
         state: start_state,
         f_score: start.manhattan_distance(&goal),
@@ -131,27 +140,29 @@ fn astar(maze: &[Vec<u8>], start: Position, goal: Position) -> Option<(Vec<Packe
     });
 
     while let Some(current_node) = open_set.pop() {
-        let current_state = current_node.state.clone();
+        let current_state = current_node.state;
 
-        if current_state.pos == goal {
+        if current_state.pos() == goal {
             let total_score = g_scores[&current_state];
             return Some((reconstruct_path(&came_from, current_state), total_score));
         }
 
         let current_g = g_scores[&current_state];
 
-        for (neighbor_state, cost) in get_neighbors(&current_state, maze) {
+        for (neighbor_state, cost) in get_neighbors(&current_state, maze)
+            .iter()
+            .filter_map(|n| *n)
+        {
             let tentative_g_score = current_g + cost;
 
             if !g_scores.contains_key(&neighbor_state)
                 || tentative_g_score < g_scores[&neighbor_state]
             {
-                came_from.insert(neighbor_state.clone(), current_state.clone());
-                g_scores.insert(neighbor_state.clone(), tentative_g_score);
-                let f_score = tentative_g_score + neighbor_state.pos.manhattan_distance(&goal);
+                came_from.insert(neighbor_state, current_state);
+                g_scores.insert(neighbor_state, tentative_g_score);
                 open_set.push(Node {
                     state: neighbor_state,
-                    f_score,
+                    f_score: tentative_g_score + neighbor_state.pos().manhattan_distance(&goal),
                     g_score: tentative_g_score,
                 });
             }
@@ -163,17 +174,13 @@ fn astar(maze: &[Vec<u8>], start: Position, goal: Position) -> Option<(Vec<Packe
 
 fn best_tiles(
     maze: &Vec<Vec<u8>>,
-    start: Position,
-    goal: Position,
+    start: PackedPosition,
+    goal: PackedPosition,
 ) -> Option<(Vec<PackedPosition>, i32, HashSet<PackedPosition>)> {
     // first pass: Find optimal path
     let (optimal_path, optimal_score) = astar(maze, start.clone(), goal.clone()).unwrap();
 
-    let start_state = State {
-        // pos: start.clone(),
-        pos: PackedPosition::new(start.x, start.y),
-        direction: (1, 0),
-    };
+    let start_state = PackedState::new(start, (1, 0));
 
     // second pass: Find all tiles that are part of paths with optimal_score
     let mut open_set = BinaryHeap::new();
@@ -181,7 +188,7 @@ fn best_tiles(
     let mut best_tiles = HashSet::new();
 
     // track multiple possible previous states for each state
-    let mut came_from: HashMap<State, HashSet<State>> = HashMap::new();
+    let mut came_from: HashMap<PackedState, HashSet<PackedState>> = HashMap::new();
 
     g_scores.insert(start_state.clone(), 0);
     open_set.push(Node {
@@ -190,37 +197,36 @@ fn best_tiles(
         g_score: 0,
     });
 
-    let start = PackedPosition::new(start.x, start.y);
-    let goal = PackedPosition::new(goal.x, goal.y);
-
     // find all valid paths
     while let Some(current_node) = open_set.pop() {
         let current_state = current_node.state;
         let current_g = g_scores[&current_state];
 
         // if at goal with optimal score, reconstruct all possible paths
-        if current_state.pos == goal && current_g == optimal_score {
-            // use a DFS to find all paths back to start
-            let mut stack = vec![(current_state.clone(), HashSet::new())];
+        if current_state.pos() == goal && current_g == optimal_score {
+            let mut stack = vec![(current_state, HashSet::new())];
 
             while let Some((state, mut path_tiles)) = stack.pop() {
-                path_tiles.insert(state.pos);
+                path_tiles.insert(state.pos());
 
-                if state.pos == start {
+                if state.pos() == start {
                     // found a complete path, add its tiles
                     best_tiles.extend(path_tiles);
                 } else if let Some(prev_states) = came_from.get(&state) {
                     // add all possible previous states to explore
                     for prev_state in prev_states {
                         let new_path_tiles = path_tiles.clone();
-                        stack.push((prev_state.clone(), new_path_tiles));
+                        stack.push((*prev_state, new_path_tiles));
                     }
                 }
             }
         }
 
         if current_g <= optimal_score {
-            for (neighbor_state, cost) in get_neighbors(&current_state, maze) {
+            for (neighbor_state, cost) in get_neighbors(&current_state, maze)
+                .iter()
+                .filter_map(|n| *n)
+            {
                 let new_score = current_g + cost;
 
                 if new_score <= optimal_score {
@@ -229,12 +235,13 @@ fn best_tiles(
                         || new_score == g_scores[&neighbor_state]
                     {
                         came_from
-                            .entry(neighbor_state.clone())
+                            .entry(neighbor_state)
                             .or_insert_with(HashSet::new)
-                            .insert(current_state.clone());
+                            .insert(current_state);
 
-                        g_scores.insert(neighbor_state.clone(), new_score);
-                        let new_f_score = new_score + neighbor_state.pos.manhattan_distance(&goal);
+                        g_scores.insert(neighbor_state, new_score);
+                        let new_f_score =
+                            new_score + neighbor_state.pos().manhattan_distance(&goal);
                         open_set.push(Node {
                             state: neighbor_state,
                             f_score: new_f_score,
@@ -249,14 +256,16 @@ fn best_tiles(
     Some((optimal_path, optimal_score, best_tiles))
 }
 
-// Helper function to reconstruct path
 #[inline(always)]
-fn reconstruct_path(came_from: &HashMap<State, State>, mut current: State) -> Vec<PackedPosition> {
-    let mut path = vec![current.pos];
+fn reconstruct_path(
+    came_from: &HashMap<PackedState, PackedState>,
+    mut current: PackedState,
+) -> Vec<PackedPosition> {
+    let mut path = vec![current.pos()];
 
     while let Some(prev_state) = came_from.get(&current) {
-        path.push(prev_state.pos);
-        current = prev_state.clone();
+        path.push(prev_state.pos());
+        current = *prev_state;
     }
 
     path.reverse();
@@ -265,8 +274,8 @@ fn reconstruct_path(came_from: &HashMap<State, State>, mut current: State) -> Ve
 
 struct Input {
     maze: Vec<Vec<u8>>,
-    start: Position,
-    end: Position,
+    start: PackedPosition,
+    end: PackedPosition,
 }
 
 #[aoc_generator(day16)]
@@ -278,18 +287,12 @@ fn parse(input: &str) -> Input {
 
     let start = maze
         .get_unique_position(b'S')
-        .map(|(y, x)| Position {
-            x: x as i32,
-            y: y as i32,
-        })
+        .map(|(y, x)| PackedPosition::new(x as i32, y as i32))
         .unwrap();
 
     let end = maze
         .get_unique_position(b'E')
-        .map(|(y, x)| Position {
-            x: x as i32,
-            y: y as i32,
-        })
+        .map(|(y, x)| PackedPosition::new(x as i32, y as i32))
         .unwrap();
 
     Input { maze, start, end }
