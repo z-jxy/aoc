@@ -16,11 +16,37 @@ struct Position {
     y: i32,
 }
 
-// Add direction to track current movement
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+struct PackedPosition(u32);
+
+impl PackedPosition {
+    #[inline(always)]
+    fn new(x: i32, y: i32) -> Self {
+        debug_assert!(x >= 0 && x < 65536 && y >= 0 && y < 65536);
+        PackedPosition(((y as u32) << 16) | (x as u32))
+    }
+
+    #[inline(always)]
+    fn x(self) -> i32 {
+        (self.0 & 0xFFFF) as i32
+    }
+
+    #[inline(always)]
+    fn y(self) -> i32 {
+        (self.0 >> 16) as i32
+    }
+
+    #[inline(always)]
+    fn manhattan_distance(self, other: &PackedPosition) -> i32 {
+        (self.x() - other.x()).abs() + (self.y() - other.y()).abs()
+    }
+}
+
+// track current movement
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 struct State {
-    pos: Position,
-    direction: (i32, i32), // None for start position
+    pos: PackedPosition,
+    direction: (i32, i32),
 }
 
 #[derive(Eq, PartialEq)]
@@ -57,8 +83,8 @@ fn get_neighbors(state: &State, maze: &[Vec<u8>]) -> Vec<(State, i32)> {
     let mut neighbors = Vec::new();
 
     for &dir in DIRECTIONS.iter() {
-        let new_x = state.pos.x + dir.0;
-        let new_y = state.pos.y + dir.1;
+        let new_x = state.pos.x() + dir.0;
+        let new_y = state.pos.y() + dir.1;
 
         if new_x >= 0
             && new_x < maze[0].len() as i32
@@ -74,7 +100,8 @@ fn get_neighbors(state: &State, maze: &[Vec<u8>]) -> Vec<(State, i32)> {
             };
 
             let new_state = State {
-                pos: Position { x: new_x, y: new_y },
+                // pos: Position { x: new_x, y: new_y },
+                pos: PackedPosition::new(new_x, new_y),
                 direction: dir,
             };
 
@@ -84,20 +111,21 @@ fn get_neighbors(state: &State, maze: &[Vec<u8>]) -> Vec<(State, i32)> {
     neighbors
 }
 
-// Modified to return both path and total score
-fn astar(maze: &[Vec<u8>], start: Position, goal: Position) -> Option<(Vec<Position>, i32)> {
+fn astar(maze: &[Vec<u8>], start: Position, goal: Position) -> Option<(Vec<PackedPosition>, i32)> {
     let mut open_set = BinaryHeap::new();
     let mut came_from: HashMap<State, State> = HashMap::new();
     let mut g_scores: HashMap<State, i32> = HashMap::new();
 
     let start_state = State {
-        pos: start.clone(),
+        pos: PackedPosition::new(start.x, start.y),
         direction: (1, 0), // Initially facing East
     };
+    let start = PackedPosition::new(start.x, start.y);
+    let goal = PackedPosition::new(goal.x, goal.y);
 
     g_scores.insert(start_state.clone(), 0);
     open_set.push(Node {
-        state: start_state.clone(),
+        state: start_state,
         f_score: start.manhattan_distance(&goal),
         g_score: 0,
     });
@@ -137,12 +165,13 @@ fn best_tiles(
     maze: &Vec<Vec<u8>>,
     start: Position,
     goal: Position,
-) -> Option<(Vec<Position>, i32, HashSet<Position>)> {
+) -> Option<(Vec<PackedPosition>, i32, HashSet<PackedPosition>)> {
     // first pass: Find optimal path
     let (optimal_path, optimal_score) = astar(maze, start.clone(), goal.clone()).unwrap();
 
     let start_state = State {
-        pos: start.clone(),
+        // pos: start.clone(),
+        pos: PackedPosition::new(start.x, start.y),
         direction: (1, 0),
     };
 
@@ -161,6 +190,9 @@ fn best_tiles(
         g_score: 0,
     });
 
+    let start = PackedPosition::new(start.x, start.y);
+    let goal = PackedPosition::new(goal.x, goal.y);
+
     // find all valid paths
     while let Some(current_node) = open_set.pop() {
         let current_state = current_node.state;
@@ -172,7 +204,7 @@ fn best_tiles(
             let mut stack = vec![(current_state.clone(), HashSet::new())];
 
             while let Some((state, mut path_tiles)) = stack.pop() {
-                path_tiles.insert(state.pos.clone());
+                path_tiles.insert(state.pos);
 
                 if state.pos == start {
                     // found a complete path, add its tiles
@@ -219,7 +251,7 @@ fn best_tiles(
 
 // Helper function to reconstruct path
 #[inline(always)]
-fn reconstruct_path(came_from: &HashMap<State, State>, mut current: State) -> Vec<Position> {
+fn reconstruct_path(came_from: &HashMap<State, State>, mut current: State) -> Vec<PackedPosition> {
     let mut path = vec![current.pos];
 
     while let Some(prev_state) = came_from.get(&current) {
