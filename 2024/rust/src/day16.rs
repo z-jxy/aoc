@@ -15,23 +15,23 @@ struct PackedPosition(u32);
 
 impl PackedPosition {
     #[inline(always)]
-    fn new(x: i32, y: i32) -> Self {
+    const fn new(x: i32, y: i32) -> Self {
         debug_assert!(x >= 0 && x < 65536 && y >= 0 && y < 65536);
         PackedPosition(((y as u32) << 16) | (x as u32))
     }
 
     #[inline(always)]
-    fn x(self) -> i32 {
+    const fn x(self) -> i32 {
         (self.0 & 0xFFFF) as i32
     }
 
     #[inline(always)]
-    fn y(self) -> i32 {
+    const fn y(self) -> i32 {
         (self.0 >> 16) as i32
     }
 
     #[inline(always)]
-    fn manhattan_distance(self, other: &PackedPosition) -> i32 {
+    const fn manhattan_distance(self, other: &PackedPosition) -> i32 {
         (self.x() - other.x()).abs() + (self.y() - other.y()).abs()
     }
 }
@@ -42,7 +42,7 @@ struct PackedState(u32);
 
 impl PackedState {
     #[inline(always)]
-    fn new(pos: PackedPosition, dir: (i32, i32)) -> Self {
+    const fn new(pos: PackedPosition, dir: (i32, i32)) -> Self {
         let dir_bits = match dir {
             (0, 1) => 0,  // right
             (1, 0) => 1,  // down
@@ -55,12 +55,12 @@ impl PackedState {
     }
 
     #[inline(always)]
-    fn pos(self) -> PackedPosition {
+    const fn pos(self) -> PackedPosition {
         PackedPosition(self.0 & 0x3FFFFFFF) // Mask off direction bits
     }
 
     #[inline(always)]
-    fn direction(self) -> (i32, i32) {
+    const fn direction(self) -> (i32, i32) {
         match (self.0 >> 30) & 0x3 {
             0 => (0, 1),
             1 => (1, 0),
@@ -121,18 +121,12 @@ fn get_neighbors(state: &PackedState, maze: &[Vec<u8>]) -> [Option<(PackedState,
     neighbors
 }
 
-fn astar(
-    maze: &[Vec<u8>],
-    start: PackedPosition,
-    goal: PackedPosition,
-) -> Option<(Vec<PackedPosition>, i32)> {
-    let mut open_set = BinaryHeap::new();
-    let mut came_from: HashMap<PackedState, PackedState> = HashMap::new();
-    let mut g_scores: HashMap<PackedState, i32> = HashMap::new();
+fn astar(maze: &[Vec<u8>], start: PackedPosition, goal: PackedPosition) -> u32 {
+    let mut open_set = BinaryHeap::with_capacity(maze.len() * maze[0].len());
 
     let start_state = PackedState::new(start, (1, 0));
+    let mut visited = HashSet::with_capacity(maze.len() * maze[0].len());
 
-    g_scores.insert(start_state, 0);
     open_set.push(Node {
         state: start_state,
         f_score: start.manhattan_distance(&goal),
@@ -143,11 +137,10 @@ fn astar(
         let current_state = current_node.state;
 
         if current_state.pos() == goal {
-            let total_score = g_scores[&current_state];
-            return Some((reconstruct_path(&came_from, current_state), total_score));
+            return current_node.g_score as u32;
         }
 
-        let current_g = g_scores[&current_state];
+        let current_g = current_node.g_score;
 
         for (neighbor_state, cost) in get_neighbors(&current_state, maze)
             .iter()
@@ -155,11 +148,8 @@ fn astar(
         {
             let tentative_g_score = current_g + cost;
 
-            if !g_scores.contains_key(&neighbor_state)
-                || tentative_g_score < g_scores[&neighbor_state]
-            {
-                came_from.insert(neighbor_state, current_state);
-                g_scores.insert(neighbor_state, tentative_g_score);
+            if !visited.contains(&neighbor_state) {
+                visited.insert(neighbor_state);
                 open_set.push(Node {
                     state: neighbor_state,
                     f_score: tentative_g_score + neighbor_state.pos().manhattan_distance(&goal),
@@ -169,30 +159,27 @@ fn astar(
         }
     }
 
-    None
+    unreachable!()
 }
 
-fn best_tiles(
-    maze: &Vec<Vec<u8>>,
-    start: PackedPosition,
-    goal: PackedPosition,
-) -> Option<(Vec<PackedPosition>, i32, HashSet<PackedPosition>)> {
+fn best_tiles(Input { maze, start, goal }: &Input) -> HashSet<PackedPosition> {
+    let (start, goal) = (*start, *goal);
     // first pass: Find optimal path
-    let (optimal_path, optimal_score) = astar(maze, start.clone(), goal.clone()).unwrap();
+    let optimal_score = astar(&maze, start.clone(), goal.clone());
 
     let start_state = PackedState::new(start, (1, 0));
 
     // second pass: Find all tiles that are part of paths with optimal_score
-    let mut open_set = BinaryHeap::new();
+    let mut open_set = BinaryHeap::with_capacity(maze.len() * maze[0].len());
     let mut g_scores = HashMap::new();
     let mut best_tiles = HashSet::new();
 
     // track multiple possible previous states for each state
     let mut came_from: HashMap<PackedState, HashSet<PackedState>> = HashMap::new();
 
-    g_scores.insert(start_state.clone(), 0);
+    g_scores.insert(start_state, 0);
     open_set.push(Node {
-        state: start_state.clone(),
+        state: start_state,
         f_score: start.manhattan_distance(&goal),
         g_score: 0,
     });
@@ -223,11 +210,11 @@ fn best_tiles(
         }
 
         if current_g <= optimal_score {
-            for (neighbor_state, cost) in get_neighbors(&current_state, maze)
+            for (neighbor_state, cost) in get_neighbors(&current_state, &maze)
                 .iter()
                 .filter_map(|n| *n)
             {
-                let new_score = current_g + cost;
+                let new_score = current_g + cost as u32;
 
                 if new_score <= optimal_score {
                     // allow multiple paths through the same state if they have the same score
@@ -241,11 +228,11 @@ fn best_tiles(
 
                         g_scores.insert(neighbor_state, new_score);
                         let new_f_score =
-                            new_score + neighbor_state.pos().manhattan_distance(&goal);
+                            new_score as i32 + neighbor_state.pos().manhattan_distance(&goal);
                         open_set.push(Node {
                             state: neighbor_state,
                             f_score: new_f_score,
-                            g_score: new_score,
+                            g_score: new_score as i32,
                         });
                     }
                 }
@@ -253,7 +240,7 @@ fn best_tiles(
         }
     }
 
-    Some((optimal_path, optimal_score, best_tiles))
+    best_tiles
 }
 
 #[inline(always)]
@@ -275,7 +262,7 @@ fn reconstruct_path(
 struct Input {
     maze: Vec<Vec<u8>>,
     start: PackedPosition,
-    end: PackedPosition,
+    goal: PackedPosition,
 }
 
 #[aoc_generator(day16)]
@@ -290,26 +277,23 @@ fn parse(input: &str) -> Input {
         .map(|(y, x)| PackedPosition::new(x as i32, y as i32))
         .unwrap();
 
-    let end = maze
+    let goal = maze
         .get_unique_position(b'E')
         .map(|(y, x)| PackedPosition::new(x as i32, y as i32))
         .unwrap();
 
-    Input { maze, start, end }
+    Input { maze, start, goal }
 }
 
 #[aoc(day16, part1)]
 fn part1(input: &Input) -> usize {
-    let (_, score) = astar(&input.maze, input.start, input.end).unwrap();
-
+    let score = astar(&input.maze, input.start, input.goal);
     score as usize
 }
 
 #[aoc(day16, part2)]
 fn part2(input: &Input) -> usize {
-    let (_, _, best_tiles) = best_tiles(&input.maze, input.start, input.end).unwrap();
-
-    best_tiles.len()
+    best_tiles(&input).len()
 }
 
 #[cfg(test)]
@@ -340,5 +324,146 @@ mod tests {
     #[test]
     fn part2_example() {
         assert_eq!(part2(&parse(EXAMPLE)), 45);
+    }
+}
+
+mod debug {
+    use super::*;
+
+    #[allow(dead_code)]
+    fn dbg_best_tiles(
+        maze: &Vec<Vec<u8>>,
+        start: PackedPosition,
+        goal: PackedPosition,
+    ) -> Option<(Vec<PackedPosition>, i32, HashSet<PackedPosition>)> {
+        // first pass: Find optimal path
+        let (optimal_path, optimal_score) =
+            _debug_astar(maze, start.clone(), goal.clone()).unwrap();
+
+        let start_state = PackedState::new(start, (1, 0));
+
+        // second pass: Find all tiles that are part of paths with optimal_score
+        let mut open_set = BinaryHeap::new();
+        let mut g_scores = HashMap::new();
+        let mut best_tiles = HashSet::new();
+
+        // track multiple possible previous states for each state
+        let mut came_from: HashMap<PackedState, HashSet<PackedState>> = HashMap::new();
+
+        g_scores.insert(start_state, 0);
+        open_set.push(Node {
+            state: start_state,
+            f_score: start.manhattan_distance(&goal),
+            g_score: 0,
+        });
+
+        // find all valid paths
+        while let Some(current_node) = open_set.pop() {
+            let current_state = current_node.state;
+            let current_g = g_scores[&current_state];
+
+            // if at goal with optimal score, reconstruct all possible paths
+            if current_state.pos() == goal && current_g == optimal_score {
+                let mut stack = vec![(current_state, HashSet::new())];
+
+                while let Some((state, mut path_tiles)) = stack.pop() {
+                    path_tiles.insert(state.pos());
+
+                    if state.pos() == start {
+                        // found a complete path, add its tiles
+                        best_tiles.extend(path_tiles);
+                    } else if let Some(prev_states) = came_from.get(&state) {
+                        // add all possible previous states to explore
+                        for prev_state in prev_states {
+                            let new_path_tiles = path_tiles.clone();
+                            stack.push((*prev_state, new_path_tiles));
+                        }
+                    }
+                }
+            }
+
+            if current_g <= optimal_score {
+                for (neighbor_state, cost) in get_neighbors(&current_state, maze)
+                    .iter()
+                    .filter_map(|n| *n)
+                {
+                    let new_score = current_g + cost;
+
+                    if new_score <= optimal_score {
+                        // allow multiple paths through the same state if they have the same score
+                        if !g_scores.contains_key(&neighbor_state)
+                            || new_score == g_scores[&neighbor_state]
+                        {
+                            came_from
+                                .entry(neighbor_state)
+                                .or_insert_with(HashSet::new)
+                                .insert(current_state);
+
+                            g_scores.insert(neighbor_state, new_score);
+                            let new_f_score =
+                                new_score + neighbor_state.pos().manhattan_distance(&goal);
+                            open_set.push(Node {
+                                state: neighbor_state,
+                                f_score: new_f_score,
+                                g_score: new_score,
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        Some((optimal_path, optimal_score, best_tiles))
+    }
+
+    fn _debug_astar(
+        maze: &[Vec<u8>],
+        start: PackedPosition,
+        goal: PackedPosition,
+    ) -> Option<(Vec<PackedPosition>, i32)> {
+        let mut open_set = BinaryHeap::new();
+        let mut came_from: HashMap<PackedState, PackedState> = HashMap::new();
+        let mut g_scores: HashMap<PackedState, i32> = HashMap::new();
+
+        let start_state = PackedState::new(start, (1, 0));
+
+        g_scores.insert(start_state, 0);
+        open_set.push(Node {
+            state: start_state,
+            f_score: start.manhattan_distance(&goal),
+            g_score: 0,
+        });
+
+        while let Some(current_node) = open_set.pop() {
+            let current_state = current_node.state;
+
+            if current_state.pos() == goal {
+                let total_score = g_scores[&current_state];
+                return Some((reconstruct_path(&came_from, current_state), total_score));
+            }
+
+            let current_g = g_scores[&current_state];
+
+            for (neighbor_state, cost) in get_neighbors(&current_state, maze)
+                .iter()
+                .filter_map(|n| *n)
+            {
+                let tentative_g_score = current_g + cost;
+
+                if !g_scores.contains_key(&neighbor_state)
+                    || tentative_g_score < g_scores[&neighbor_state]
+                {
+                    came_from.insert(neighbor_state, current_state);
+                    g_scores.insert(neighbor_state, tentative_g_score);
+                    open_set.push(Node {
+                        state: neighbor_state,
+                        f_score: tentative_g_score + neighbor_state.pos().manhattan_distance(&goal),
+                        g_score: tentative_g_score,
+                    });
+                }
+            }
+        }
+
+        None
     }
 }
