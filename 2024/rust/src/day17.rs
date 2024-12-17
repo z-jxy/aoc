@@ -75,7 +75,8 @@ impl VM {
     }
 
     #[inline(always)]
-    fn exec_instr(&mut self, instr: Instr, operand: u8) {
+    fn exec_instr(&mut self, instr: Instr, operand: u8) -> Option<u8> {
+        let mut out = None;
         match instr {
             Instr::Adv => {
                 self.registers[0] = adv(self.a(), self.combo_operand(operand) as u32);
@@ -89,14 +90,16 @@ impl VM {
             Instr::Jnz => {
                 if self.registers[0] != 0 {
                     self.ip = operand as usize;
-                    return;
+                    return None;
                 }
             }
             Instr::Bxc => {
                 *self.b_mut() = self.b() ^ self.c();
             }
             Instr::Out => {
-                self.output.push((self.combo_operand(operand) % 8) as u8);
+                let _out = (self.combo_operand(operand) % 8) as u8;
+                self.output.push(_out);
+                out = Some(_out);
             }
             Instr::Bdv => {
                 *self.b_mut() = adv(self.a(), self.combo_operand(operand) as u32);
@@ -107,6 +110,7 @@ impl VM {
         }
 
         self.ip += 2;
+        out
     }
 
     fn best_corrupted_a(&self) -> usize {
@@ -233,13 +237,51 @@ fn part1(input: &VM) -> String {
     output
 }
 
-#[aoc(day17, part2)]
+#[aoc(day17, part2, re)]
 fn part2(vm: &VM) -> usize {
     let a = vm.best_corrupted_a();
 
     assert_eq!(a, 109020013201563, "This solution is input dependent");
 
     a
+}
+
+#[aoc(day17, part2, revisit)]
+fn part2_revisit(vm: &VM) -> usize {
+    let mut valid = vec![0];
+    let input = &vm.program;
+
+    for &out in input.iter().rev() {
+        let mut next = Vec::new();
+
+        for v in valid {
+            for n in 0..8 {
+                let a = (v << 3) | n;
+                let mut vm = VM {
+                    registers: [a, 0, 0],
+                    program: input.clone(),
+                    ip: 0,
+                    output: Vec::new(),
+                };
+
+                while vm.ip < input.len() {
+                    let [opcode, operand] = input[vm.ip..vm.ip + 2] else {
+                        panic!("Invalid program");
+                    };
+                    if let Some(o) = vm.exec_instr(Instr::from(opcode), operand) {
+                        if o == out {
+                            next.push(a);
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+
+        valid = next;
+    }
+
+    *valid.iter().min().unwrap()
 }
 
 #[cfg(test)]
@@ -252,8 +294,19 @@ Register C: 0
 
 Program: 0,1,5,4,3,0";
 
+    const EXAMPLE2: &str = r#"Register A: 2024
+Register B: 0
+Register C: 0
+
+Program: 0,3,5,4,3,0"#;
+
     #[test]
     fn part1_example() {
         assert_eq!(part1(&parse(&EXAMPLE)), "4,6,3,5,6,3,5,2,1,0");
+    }
+
+    #[test]
+    fn part2_example() {
+        assert_eq!(part2_revisit(&parse(&EXAMPLE2)), 117440);
     }
 }
