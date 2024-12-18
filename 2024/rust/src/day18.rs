@@ -2,6 +2,8 @@ use aoc_runner_derive::{aoc, aoc_generator};
 use std::cmp::Ordering;
 use std::collections::{BinaryHeap, HashMap};
 
+use crate::DIRECTIONS4;
+
 #[derive(Copy, Clone, Eq, PartialEq)]
 struct State {
     cost: usize,
@@ -23,36 +25,34 @@ impl PartialOrd for State {
     }
 }
 
-const DIRECTIONS: [(i32, i32); 4] = [(-1, 0), (0, -1), (0, 1), (1, 0)];
+const GRID_SIZE: usize = {
+    if cfg!(test) {
+        7
+    } else {
+        71
+    }
+};
 
 #[aoc_generator(day18)]
-fn parse(input: &str) -> (Vec<(usize, usize)>, usize) {
-    let mut max_index = 6; // max index for the example input
-    (
-        input
-            .lines()
-            .map(|l| {
-                let (x, y) = l.split_once(",").unwrap();
-                let x: usize = x.trim().parse().unwrap();
-                let y: usize = y.trim().parse().unwrap();
+fn parse(input: &str) -> Vec<(usize, usize)> {
+    input
+        .lines()
+        .map(|l| {
+            let (x, y) = l.split_once(",").unwrap();
+            let x: usize = x.trim().parse().unwrap();
+            let y: usize = y.trim().parse().unwrap();
 
-                max_index = max_index.max(y.max(x));
-
-                (x, y)
-            })
-            .collect(),
-        max_index + 1,
-    )
+            (x, y)
+        })
+        .collect()
 }
 
 // Helper function to check if a path exists
-fn find_path(grid: &[Vec<u8>]) -> (bool, usize, Vec<(usize, usize)>) {
-    let grid_size = grid.len();
-
+fn find_path(grid: &[Vec<u8>]) -> Option<(usize, Vec<(usize, usize)>)> {
     let mut distances: HashMap<(usize, usize), usize> = HashMap::new();
-    let mut heap = BinaryHeap::new();
+    let mut heap: BinaryHeap<State> = BinaryHeap::new();
     let mut previous: HashMap<(usize, usize), (usize, usize)> = HashMap::new();
-    let mut visited = vec![vec![false; grid_size]; grid_size];
+    let mut visited = vec![vec![false; GRID_SIZE]; GRID_SIZE];
 
     heap.push(State {
         cost: 0,
@@ -68,7 +68,7 @@ fn find_path(grid: &[Vec<u8>]) -> (bool, usize, Vec<(usize, usize)>) {
         }
         visited[y][x] = true;
 
-        if position == (grid_size - 1, grid_size - 1) {
+        if position == (GRID_SIZE - 1, GRID_SIZE - 1) {
             // reconstruct path
             let mut path = vec![];
             let mut current = position;
@@ -78,14 +78,14 @@ fn find_path(grid: &[Vec<u8>]) -> (bool, usize, Vec<(usize, usize)>) {
             }
             path.push((0, 0));
 
-            return (true, cost, path);
+            return Some((cost, path));
         }
 
-        for &(dx, dy) in &DIRECTIONS {
+        for &(dx, dy) in &DIRECTIONS4 {
             let new_x = x as i32 + dx;
             let new_y = y as i32 + dy;
 
-            if new_x < 0 || new_x >= grid_size as i32 || new_y < 0 || new_y >= grid_size as i32 {
+            if new_x < 0 || new_x >= GRID_SIZE as i32 || new_y < 0 || new_y >= GRID_SIZE as i32 {
                 continue;
             }
 
@@ -104,16 +104,16 @@ fn find_path(grid: &[Vec<u8>]) -> (bool, usize, Vec<(usize, usize)>) {
         }
     }
 
-    (false, 0, vec![])
+    None
 }
 
 #[aoc(day18, part1)]
-fn part1((input, grid_size): &(Vec<(usize, usize)>, usize)) -> usize {
-    let grid_size = *grid_size;
-    let mut grid = vec![vec![b'.'; grid_size]; grid_size];
+fn part1(input: &[(usize, usize)]) -> usize {
+    // let grid_size = *grid_size;
+    let mut grid = vec![vec![b'.'; GRID_SIZE]; GRID_SIZE];
 
     // tests
-    for &(x, y) in input.iter().take(match grid_size {
+    for &(x, y) in input.iter().take(match GRID_SIZE {
         7 => 12,
         71 => 1024,
         _ => unreachable!("Bad grid size"),
@@ -121,22 +121,29 @@ fn part1((input, grid_size): &(Vec<(usize, usize)>, usize)) -> usize {
         grid[y][x] = b'#';
     }
 
-    let (found, cost, _) = find_path(&grid);
-    if !found {
-        panic!("No path found");
-    }
+    let (cost, _) = find_path(&grid).expect("No path found");
 
     cost
 }
 
 #[aoc(day18, part2)]
-fn part2((input, grid_size): &(Vec<(usize, usize)>, usize)) -> String {
-    let mut grid = vec![vec![b'.'; *grid_size]; *grid_size];
+fn part2(input: &[(usize, usize)]) -> String {
+    let mut grid = vec![vec![b'.'; GRID_SIZE]; GRID_SIZE];
+
+    // based off pt 1, we know that a valid input will have have a path after atleast this many obstacles so we can skip them
+    for &(x, y) in input.iter().take(match GRID_SIZE {
+        7 => 12,
+        71 => 1024,
+        _ => unreachable!("Bad grid size"),
+    }) {
+        grid[y][x] = b'#';
+    }
 
     let mut last_path: Option<Vec<(usize, usize)>> = None;
 
     for &(x, y) in input.iter() {
         grid[y][x] = b'#';
+
         // if the last found path doesn't contain the new point, skip it
         if let Some(ref path) = last_path {
             if !path.iter().any(|&(px, py)| px == x && py == y) {
@@ -144,10 +151,9 @@ fn part2((input, grid_size): &(Vec<(usize, usize)>, usize)) -> String {
             }
         }
 
-        let (found, _, path) = find_path(&grid);
-        if !found {
+        let Some((_, path)) = find_path(&grid) else {
             return format!("{},{}", x, y);
-        }
+        };
 
         last_path = Some(path);
     }
