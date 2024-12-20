@@ -1,4 +1,3 @@
-mod day19;
 mod day10;
 mod day11;
 mod day12;
@@ -8,6 +7,8 @@ mod day15;
 mod day16;
 mod day17;
 mod day18;
+mod day19;
+mod day20;
 mod day9;
 #[macro_use]
 extern crate aoc_runner_derive;
@@ -19,6 +20,9 @@ pub use aoc_macros::main;
 pub const DIRECTIONS4: [(i32, i32); 4] = [(0, 1), (1, 0), (0, -1), (-1, 0)];
 
 pub trait GridExt<S> {
+    /// Returns the first unique position of the given identifier in the grid.
+    ///
+    /// (row, column)
     fn get_unique_position(&self, identifier: S) -> Option<(usize, usize)>;
 }
 
